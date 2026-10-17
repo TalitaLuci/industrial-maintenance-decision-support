@@ -1,6 +1,10 @@
 """Cálculo de pesos AHP por autovetor principal."""
 import numpy as np
 
+# Índices de consistência aleatória de Saaty.
+RI_TABLE = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12,
+            6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+
 
 def ahp_weights(pairwise: np.ndarray) -> dict:
     matrix = np.asarray(pairwise, dtype=float)
@@ -22,10 +26,7 @@ def ahp_weights(pairwise: np.ndarray) -> dict:
     weights = weights / weights.sum()
     n = matrix.shape[0]
     ci = 0.0 if n <= 2 else max(0.0, (principal_value - n) / (n - 1))
-    # Índices aleatórios de Saaty mais comuns.
-    ri_table = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12,
-                6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
-    ri = ri_table.get(n, 1.49)
+    ri = RI_TABLE.get(n, 1.49)
     cr = 0.0 if ri == 0 else ci / ri
     return {
         "weights": weights,
@@ -37,10 +38,5 @@ def ahp_weights(pairwise: np.ndarray) -> dict:
 
 
 def example_balanced_matrix() -> np.ndarray:
-    """Matriz de exemplo ilustrativa; deve ser revista pelo responsável pela decisão."""
-    return np.array([
-        [1,   3,   4,   3],
-        [1/3, 1,   2,   2],
-        [1/4, 1/2, 1,   1/2],
-        [1/3, 1/2, 2,   1],
-    ], dtype=float)
+    """Perfil equilibrado: os quatro critérios têm a mesma importância."""
+    return np.ones((4, 4), dtype=float)

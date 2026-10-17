@@ -1,1 +1,14 @@
-Os CSV/JSON gerados pela execução local serão salvos nesta pasta. Métricas não foram pré-calculadas porque dependem dos arquivos C-MAPSS obtidos pelo usuário.
+# Resultados gerados
+
+Arquivos produzidos pelo código (pequenos e versionados para que o dashboard funcione logo após clonar o repositório):
+
+| Arquivo | Origem | Conteúdo |
+|---|---|---|
+| `cv_metrics.csv` | `python -m src.modeling` | Métricas de validação cruzada por motor (5 partições), baseline e modelo, variante final (teto de RUL = 125) |
+| `cap_comparison.csv` | notebook 01 | Mesma validação para as variantes sem teto e com teto |
+| `test_predictions.csv` | `python -m src.modeling` | RUL real e prevista dos 100 motores do teste oficial (último ciclo observado) |
+| `test_metrics.json` | `python -m src.modeling` | MAE, RMSE, escore C-MAPSS e viés no teste oficial, com o baseline |
+| `ranking_*.csv` | notebook 02 | Ranking TOPSIS por perfil de decisor (critérios hipotéticos) |
+| `figures/*.png` | notebooks 01 e 02 | Gráficos usados no README |
+
+O teste oficial é avaliado **uma única vez**, depois de escolher a variante na validação cruzada. Não ajuste o modelo olhando para `test_metrics.json`.

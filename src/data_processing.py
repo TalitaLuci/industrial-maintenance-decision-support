@@ -56,3 +56,9 @@ def audit_data(df: pd.DataFrame) -> dict:
             c for c in df.columns if df[c].nunique(dropna=False) <= 1
         ],
     }
+
+
+def find_constant_columns(df: pd.DataFrame, columns: list[str] | None = None) -> list[str]:
+    """Colunas sem nenhuma variação (um único valor) no DataFrame informado."""
+    cols = columns if columns is not None else list(df.columns)
+    return [c for c in cols if df[c].nunique(dropna=False) <= 1]

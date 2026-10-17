@@ -1,78 +1,121 @@
-"""Cria critérios de demonstração e combina AHP + TOPSIS."""
+"""Critérios de decisão (um observado, três hipotéticos) e priorização AHP + TOPSIS."""
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from .ahp import ahp_weights, example_balanced_matrix
+from .ahp import ahp_weights
 from .topsis import topsis
 
-CRITERIA = [
-    "urgency",
-    "operational_criticality",
-    "intervention_cost",
-    "downtime_impact",
-]
+# Ordem dos critérios nas matrizes AHP.
+CRITERIA = ["urgency", "operational_criticality", "intervention_cost", "downtime_impact"]
+# Urgência, criticidade e impacto da parada: quanto maior, maior a prioridade (benefício).
+# Custo de intervenção: quanto menor, melhor (custo).
+BENEFIT_CRITERIA = ["urgency", "operational_criticality", "downtime_impact"]
+
+URGENCY_HORIZON = 125  # ciclos; horizonte de planejamento hipotético
+DEFAULT_URGENCY_METHOD = "linear"
+
+# Julgamentos AHP (hipotéticos) de cada perfil de decisor.
+# Linhas/colunas na ordem de CRITERIA; a[i,j] = importância de i sobre j.
+PROFILE_MATRICES = {
+    "balanced": np.ones((4, 4), dtype=float),
+    "safety_first": np.array([
+        [1,   3,   7,   4],
+        [1/3, 1,   5,   2],
+        [1/7, 1/5, 1,   1/3],
+        [1/4, 1/2, 3,   1],
+    ], dtype=float),
+    "cost_first": np.array([
+        [1,   1/2, 1/4, 1],
+        [2,   1,   1/3, 2],
+        [4,   3,   1,   4],
+        [1,   1/2, 1/4, 1],
+    ], dtype=float),
+}
 
 
-def build_demo_criteria(predictions: pd.DataFrame) -> pd.DataFrame:
+def urgency_from_rul(rul_pred, method: str = DEFAULT_URGENCY_METHOD,
+                     horizon: float = URGENCY_HORIZON) -> pd.Series:
+    """Transforma RUL prevista em urgência (maior = mais urgente).
+
+    - "linear":  1 - RUL/horizonte, truncada em [0, 1]. Interpretação: fração do
+                 horizonte de planejamento que já foi consumida.
+    - "inverse": 1 / (1 + RUL). Concentra os valores perto de zero.
     """
-    Constrói critérios hipotéticos, transparentes e reproduzíveis.
-    Criticidade/custos são regras de demonstração baseadas em ID de motor,
-    não características observadas da NASA ou de motores reais.
+    rul = pd.Series(rul_pred, dtype=float).clip(lower=0)
+    if method == "linear":
+        return (1.0 - rul / horizon).clip(lower=0.0, upper=1.0)
+    if method == "inverse":
+        return 1.0 / (1.0 + rul)
+    raise ValueError(f"Método de urgência desconhecido: {method}")
+
+
+def build_demo_criteria(predictions: pd.DataFrame,
+                        urgency_method: str = DEFAULT_URGENCY_METHOD,
+                        seed: int = 42) -> pd.DataFrame:
+    """Monta a matriz de critérios.
+
+    Observado (previsto pelo modelo): urgência, a partir da RUL prevista.
+    Hipotéticos: criticidade (1-3), índice de custo (1-10) e impacto da parada
+    (1-10), sorteados de forma independente e reprodutível por motor (seed).
+    Não descrevem motores reais.
     """
     df = predictions.copy()
-    # Menor RUL = maior urgência; transformação positiva com maior valor = maior prioridade.
-    df["urgency"] = 1.0 / (1.0 + df["rul_pred"].clip(lower=0))
-    # Cenários sintéticos determinísticos apenas para exercitar o método:
-    # não inferem criticidade real do motor.
+    df["urgency"] = urgency_from_rul(df["rul_pred"].to_numpy(), urgency_method).to_numpy()
+    unit_ids = np.sort(df["unit_nr"].astype(int).unique())
+    rng = np.random.default_rng(seed)
+    hypothetical = pd.DataFrame({
+        "operational_criticality": rng.integers(1, 4, len(unit_ids)),
+        "intervention_cost": rng.integers(1, 11, len(unit_ids)),
+        "downtime_impact": rng.integers(1, 11, len(unit_ids)),
+    }, index=unit_ids)
     ids = df["unit_nr"].astype(int)
-    df["operational_criticality"] = 1 + (ids % 3)  # escala ilustrativa 1–3
-    df["intervention_cost"] = 1 + ((ids * 7) % 10)  # índice de custo hipotético 1–10
-    df["downtime_impact"] = 1 + ((ids * 3) % 10)   # índice de impacto hipotético 1–10
+    for col in hypothetical.columns:
+        df[col] = ids.map(hypothetical[col]).to_numpy()
     return df
 
 
-def run_ranking(predictions: pd.DataFrame, profile: str = "balanced") -> tuple[pd.DataFrame, dict]:
-    criteria = build_demo_criteria(predictions)
-    matrices = {
-        "balanced": example_balanced_matrix(),
-        "safety_first": np.array([
-            [1, 4, 5, 4],
-            [1/4, 1, 2, 2],
-            [1/5, 1/2, 1, 1/2],
-            [1/4, 1/2, 2, 1],
-        ], dtype=float),
-        "cost_first": np.array([
-            [1, 1/2, 1/3, 1/2],
-            [2, 1, 1/2, 1],
-            [3, 2, 1, 2],
-            [2, 1, 1/2, 1],
-        ], dtype=float),
-    }
-    if profile not in matrices:
+def run_ranking(predictions: pd.DataFrame, profile: str = "balanced",
+                urgency_method: str = DEFAULT_URGENCY_METHOD) -> tuple[pd.DataFrame, dict]:
+    if profile not in PROFILE_MATRICES:
         raise ValueError(f"Perfil desconhecido: {profile}")
-    ahp = ahp_weights(matrices[profile])
-    decision_matrix = criteria[CRITERIA].astype(float)
-    # Critérios benefit: urgência, criticidade e impacto de indisponibilidade.
-    # Custo de intervenção é custo: menor índice recebe preferência.
-    ranked = topsis(
-        decision_matrix,
-        ahp["weights"],
-        benefit_criteria=["urgency", "operational_criticality", "downtime_impact"],
-    )
-    out = criteria.join(ranked)
-    return out.sort_values("rank"), {
+    criteria = build_demo_criteria(predictions, urgency_method=urgency_method)
+    ahp = ahp_weights(PROFILE_MATRICES[profile])
+    ranked = topsis(criteria[CRITERIA].astype(float), ahp["weights"],
+                    benefit_criteria=BENEFIT_CRITERIA)
+    out = criteria.join(ranked).sort_values("rank")
+    return out, {
         "profile": profile,
+        "urgency_method": urgency_method,
         "criteria": CRITERIA,
         "weights": dict(zip(CRITERIA, ahp["weights"].tolist())),
         "consistency_ratio": ahp["consistency_ratio"],
         "consistency_acceptable_reference": ahp["consistency_acceptable_reference"],
-        "note": "Criticidade, custo e impacto são índices hipotéticos determinísticos.",
+        "note": "Criticidade, custo e impacto são índices hipotéticos (sorteio com semente fixa).",
     }
 
 
-def save_ranking(predictions_path: str | Path, reports_dir: str | Path, profile="balanced"):
+def compare_profiles(predictions: pd.DataFrame, urgency_method: str = DEFAULT_URGENCY_METHOD,
+                     k: int = 10) -> dict:
+    """Pontuações TOPSIS por perfil, correlação de postos e sobreposição do top-k."""
+    scores = {}
+    for profile in PROFILE_MATRICES:
+        ranked, _ = run_ranking(predictions, profile, urgency_method)
+        scores[profile] = ranked.set_index("unit_nr")["topsis_score"]
+    scores = pd.DataFrame(scores)
+    top = {p: set(scores[p].nlargest(k).index) for p in scores}
+    overlap = pd.DataFrame({a: {b: len(top[a] & top[b]) for b in scores} for a in scores})
+    return {
+        "scores": scores,
+        "spearman": scores.corr(method="spearman"),
+        "top_k_overlap": overlap,
+        "top_k_in_all_profiles": sorted(set.intersection(*top.values())),
+    }
+
+
+def save_ranking(predictions_path: str | Path, reports_dir: str | Path, profile="balanced",
+                 urgency_method: str = DEFAULT_URGENCY_METHOD):
     predictions = pd.read_csv(predictions_path)
-    ranked, metadata = run_ranking(predictions, profile=profile)
+    ranked, metadata = run_ranking(predictions, profile, urgency_method)
     reports_dir = Path(reports_dir)
     reports_dir.mkdir(parents=True, exist_ok=True)
     ranked.to_csv(reports_dir / f"ranking_{profile}.csv", index=False)

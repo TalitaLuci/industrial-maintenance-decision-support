@@ -39,20 +39,16 @@ def make_window_features(
         ).fillna(0.0)
     excluded = set(feature_cols)
     excluded.update({"RUL"})
-
-    # O ciclo é incluído explicitamente apenas uma vez na saída.
     feature_names = [
         c for c in base.columns
-        if c not in excluded and c not in {ID_COL, CYCLE_COL}
-        and (
-            c.endswith("_current")
-            or f"_mean_{window}" in c
-            or f"_std_{window}" in c
-            or f"_trend_{window}" in c
-        )
+        if c not in excluded and c not in {ID_COL}
+        and (c == CYCLE_COL or c.endswith(f"_current")
+             or f"_mean_{window}" in c or f"_std_{window}" in c
+             or f"_trend_{window}" in c)
     ]
-
+    # O número absoluto do ciclo pode carregar sinal temporal; mantido de forma explícita.
     feature_names = list(dict.fromkeys(feature_names))
+    feature_names = [c for c in feature_names if c != CYCLE_COL]
     return base[[ID_COL, CYCLE_COL, *feature_names, *(["RUL"] if "RUL" in base else [])]].copy()
 
 
@@ -63,3 +59,11 @@ def get_feature_columns(feature_df: pd.DataFrame) -> list[str]:
         c for c in feature_df.columns
         if c not in excluded and pd.api.types.is_numeric_dtype(feature_df[c])
     ]
+
+
+def drop_constant_columns(train_feature_df: pd.DataFrame, columns: list[str]) -> list[str]:
+    """Remove colunas sem variação no TREINO (inclui derivadas de sensores constantes).
+
+    A lista resultante é decidida só com o treino e reaproveitada no teste.
+    """
+    return [c for c in columns if train_feature_df[c].nunique(dropna=False) > 1]

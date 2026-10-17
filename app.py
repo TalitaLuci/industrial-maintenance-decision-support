@@ -2,7 +2,9 @@
 from pathlib import Path
 import pandas as pd
 import streamlit as st
-from src.decision import run_ranking
+import json
+from src.decision import run_ranking, URGENCY_HORIZON
+from src.economics import wasted_life_cost, break_even_probability, compare_cost_scenarios
 
 ROOT = Path(__file__).resolve().parent
 REPORTS = ROOT / "reports"
@@ -27,14 +29,19 @@ if not PRED_PATH.exists():
 pred = pd.read_csv(PRED_PATH)
 metrics_path = REPORTS / "test_metrics.json"
 if metrics_path.exists():
-    import json
     metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    base = metrics.get("baseline", {})
     c1, c2, c3 = st.columns(3)
-    c1.metric("MAE (ciclos)", f"{metrics['mae']:.2f}")
-    c2.metric("RMSE (ciclos)", f"{metrics['rmse']:.2f}")
-    c3.metric("Escore C-MAPSS", f"{metrics['cmapss_score']:.2f}")
+    c1.metric("MAE (ciclos)", f"{metrics['mae']:.1f}",
+              delta=f"baseline {base['mae']:.1f}" if base else None, delta_color="off")
+    c2.metric("RMSE (ciclos)", f"{metrics['rmse']:.1f}",
+              delta=f"baseline {base['rmse']:.1f}" if base else None, delta_color="off")
+    c3.metric("Escore C-MAPSS", f"{metrics['cmapss_score']:.0f}",
+              delta=f"baseline {base['cmapss_score']:.0f}" if base else None, delta_color="off")
+    if metrics.get("rul_cap"):
+        st.caption(f"Modelo treinado com RUL limitada a {metrics['rul_cap']} ciclos (decisão do notebook 01).")
 
-st.subheader("Distribuição de RUL")
+st.subheader("RUL real vs. prevista (teste oficial)")
 st.write("Comparação entre a RUL verdadeira e a prevista na avaliação retrospectiva do teste.")
 st.scatter_chart(pred, x="rul_true", y="rul_pred")
 st.caption("A RUL verdadeira é usada apenas para avaliar o modelo; não é uma entrada para a priorização.")
@@ -69,10 +76,30 @@ st.dataframe(
         "topsis_score": "Pontuação TOPSIS",
         "rank": "Posição",
     }),
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
 )
 st.caption(
-    "Os índices de criticidade, custo e impacto são sintéticos e criados por regras "
-    "determinísticas de demonstração. Não representam informações reais sobre cada motor."
+    "Os índices de criticidade, custo e impacto são sintéticos (sorteio com semente fixa). "
+    "Não representam informações reais sobre cada motor."
 )
+
+st.subheader("Cenário econômico ilustrativo: intervir agora ou adiar?")
+st.write(
+    "Valores monetários hipotéticos. Intervir agora desperdiça parte da vida útil restante; "
+    "adiar aceita a chance de falha antes da intervenção."
+)
+motor = st.selectbox("Motor", ranked["unit_nr"].tolist(), index=0)
+rul_motor = float(ranked.loc[ranked["unit_nr"] == motor, "rul_pred"].iloc[0])
+col1, col2, col3 = st.columns(3)
+falha = col1.slider("Custo da falha (u.m.)", 500, 5000, 2000, step=250)
+valor = col2.slider("Valor do componente (u.m.)", 100, 1000, 400, step=50)
+p = col3.slider("Chance de falhar antes de intervir", 0.0, 0.5, 0.10, step=0.01)
+desperdicio = wasted_life_cost(rul_motor, valor, URGENCY_HORIZON)
+p_star = break_even_probability(desperdicio, falha)
+st.write(f"RUL prevista do motor {motor}: **{rul_motor:.0f} ciclos** | limiar de equilíbrio p* = **{p_star:.1%}**")
+st.dataframe(
+    compare_cost_scenarios(100.0, 50.0, float(falha), p, desperdicio).round(1),
+    width="stretch", hide_index=True,
+)
+st.caption("Intervenção = 100 u.m. e parada = 50 u.m. (fixos). Se p < p*, adiar custa menos nas premissas.")

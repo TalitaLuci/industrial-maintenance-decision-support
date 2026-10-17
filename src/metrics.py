@@ -27,3 +27,28 @@ def regression_metrics(y_true, y_pred) -> dict:
         "cmapss_score": cmapss_asymmetric_score(y_true, y_pred),
         "n": int(len(y_true)),
     }
+
+
+RUL_BANDS = [(0, 50), (50, 100), (100, 150)]
+
+
+def error_summary(y_true, y_pred, horizon: float = 150.0) -> dict:
+    """Resumo por faixa de RUL real (erro = previsto - real).
+
+    As métricas por faixa e "_le{horizon}" evitam que linhas de RUL muito alta,
+    ausentes do teste oficial, dominem a média geral.
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    err = y_pred - y_true
+    out = {
+        "mae": float(np.abs(err).mean()),
+        "rmse": float(np.sqrt((err ** 2).mean())),
+    }
+    within = y_true <= horizon
+    out["rmse_le150"] = float(np.sqrt((err[within] ** 2).mean()))
+    out["bias_le150"] = float(err[within].mean())
+    for lo, hi in RUL_BANDS:
+        mask = (y_true >= lo) & (y_true < hi)
+        out[f"mae_{lo}_{hi}"] = float(np.abs(err[mask]).mean()) if mask.any() else float("nan")
+    return out

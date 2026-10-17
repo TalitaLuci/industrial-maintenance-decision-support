@@ -5,11 +5,14 @@ venv/
 .env
 .ipynb_checkpoints/
 .pytest_cache/
+
+# Dados brutos (baixe da fonte oficial; veja data/raw/README.md)
 data/raw/*
-data/processed/*
 !data/raw/.gitkeep
+!data/raw/README.md
+data/processed/*
 !data/processed/.gitkeep
-reports/*.csv
-reports/*.json
-reports/*.png
-!reports/.gitkeep
+!data/processed/README.md
+
+# Os resultados em reports/ são pequenos e ficam versionados:
+# o dashboard e o README dependem deles.

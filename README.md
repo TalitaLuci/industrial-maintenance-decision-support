@@ -1,113 +1,156 @@
-# Industrial Maintenance Decision Support
-## Manutenção preditiva de turbofans e priorização multicritério de intervenções
+# Manutenção preditiva de turbofans e priorização multicritério
 
-Projeto demonstrativo de Ciência de Dados com o subconjunto **NASA C-MAPSS FD001**. O objetivo é estimar a vida útil restante (Remaining Useful Life — RUL) de motores turbofan e combinar essa estimativa com critérios hipotéticos de manutenção por meio de AHP e TOPSIS.
+Estimativa de vida útil restante (RUL) com Machine Learning e priorização de intervenções com **AHP + TOPSIS**, usando os dados simulados NASA C-MAPSS (subconjunto FD001).
 
-> **Limitação essencial:** o conjunto de dados é simulado. Criticidade e valores econômicos usados neste projeto são cenários demonstrativos, não dados reais de operação. Os rankings não devem ser usados para decisões reais de manutenção.
+> **Aviso.** Os dados são simulados e os critérios de criticidade, custo e impacto da parada, bem como todos os valores monetários, são **hipotéticos**. O projeto demonstra método e raciocínio de decisão; não descreve nenhuma planta real nem fornece recomendações operacionais.
 
-## Perguntas do projeto
+## Resumo dos resultados
 
-1. É possível estimar a RUL de motores a partir de dados de sensores?
-2. Como o modelo se comporta em motores não vistos durante o treinamento?
-3. Como um ranking multicritério muda quando variam urgência, criticidade e custos?
-4. O ranking permanece estável quando os pesos e as premissas mudam?
+- **Modelo de RUL:** no teste oficial (100 motores, último ciclo observado), MAE de **14.0** e RMSE de **19.1** ciclos, contra 39.1 e 49.8 do baseline. O modelo vence o baseline nas 5 partições da validação cruzada por motor.
+- **Decisão técnica principal:** limitar a RUL de treino a 125 ciclos reduziu o RMSE na região de interesse (RUL real ≤ 150) de 28.2 para 19.7 ciclos na validação, e praticamente eliminou o viés (de +10,4 para −0,3 ciclos).
+- **Priorização:** três perfis de decisor (equilibrado, segurança, custo) com julgamentos AHP consistentes geram rankings diferentes; 3 motores (20, 68, 82) ficam no top-10 dos três perfis.
+- **Custos:** análise ilustrativa de "intervir agora ou adiar" com limiar de equilíbrio `p*`.
 
-## Estrutura
+## Problema
 
-```text
-industrial-maintenance-decision-support/
-├── app.py
-├── requirements.txt
-├── data/                 # arquivos C-MAPSS locais (não incluídos)
-├── notebooks/            # roteiro de análise exploratória
-├── reports/              # saídas geradas
-├── src/
-│   ├── data_processing.py
-│   ├── features.py
-│   ├── metrics.py
-│   ├── modeling.py
-│   ├── ahp.py
-│   ├── topsis.py
-│   ├── decision.py
-│   └── economics.py
-└── tests/
-```
+Uma equipe de manutenção tem recursos limitados e precisa decidir qual equipamento atender primeiro. O fluxo aqui vai de dados de sensores a um ranking de prioridade:
+
+1. estimar a RUL de cada motor a partir dos sensores;
+2. transformar a RUL prevista em um critério de urgência;
+3. combinar urgência com critérios de negócio (hipotéticos) por AHP e TOPSIS;
+4. discutir, de forma ilustrativa, quando adiar uma intervenção compensa.
 
 ## Dados
 
-Baixe o conjunto C-MAPSS na fonte oficial da NASA e coloque os arquivos abaixo em `data/raw/`:
+NASA C-MAPSS, subconjunto FD001 (uma condição operacional, um modo de falha): 100 motores de treino (trajetória até a falha) e 100 de teste (trajetória truncada), com a RUL real do teste em arquivo separado. Fonte: NASA Prognostics Center of Excellence (repositório de dados de prognóstico, "Turbofan Engine Degradation Simulation"). Confira a licença e as condições de uso na fonte.
 
-- `train_FD001.txt`
-- `test_FD001.txt`
-- `RUL_FD001.txt`
+Os arquivos **não** estão neste repositório: baixe `train_FD001.txt`, `test_FD001.txt` e `RUL_FD001.txt` e coloque em `data/raw/`.
 
-A estrutura de colunas é composta por identificador do motor, ciclo, três configurações operacionais e 21 sensores. O FD001 representa um regime operacional e um modo de falha simulados.
+## Como executar
 
-Os arquivos de dados não estão incluídos neste repositório/ZIP. Consulte a página de dados da NASA: https://data.nasa.gov/dataset/cmapss-jet-engine-simulated-data
-
-## Instalação
-
-Recomendado: Python 3.10 ou 3.11.
+Requer Python 3.10 ou superior.
 
 ```bash
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+# coloque os 3 arquivos FD001 em data/raw/
+
+pytest -q                          # testes automatizados
+python -m src.modeling             # validação cruzada + teste oficial -> reports/
+streamlit run app.py               # dashboard
+
+pip install jupyterlab             # opcional, para os notebooks
+jupyter lab notebooks/
 ```
 
-## Uso rápido
+Os resultados em `reports/` já estão versionados, então o dashboard abre logo após clonar. Para regenerá-los, use os comandos acima. Os resultados são determinísticos (`random_state=42`); versões diferentes de bibliotecas podem alterar casas decimais. Resultados deste README obtidos com Python 3.12.3, scikit-learn 1.8.0, pandas 3.0.2 e numpy 2.4.4.
 
-### 1. Auditar dados e treinar/avaliar o modelo
+<!-- Adicione uma captura do dashboard em docs/dashboard.png e descomente a linha abaixo:
+![Dashboard](docs/dashboard.png) -->
 
-```bash
-python -m src.modeling
+## Estrutura
+
+```
+src/
+  data_processing.py   leitura, auditoria e RUL de treino
+  features.py          atributos por janela retrospectiva (só passado) e remoção de constantes
+  metrics.py           MAE, RMSE, escore assimétrico do C-MAPSS e erro por faixa de RUL
+  modeling.py          validação cruzada por motor, modelo final e avaliação no teste
+  ahp.py               pesos AHP por autovetor e razão de consistência
+  topsis.py            ordenação TOPSIS (critérios de custo e de benefício)
+  decision.py          critérios, perfis de decisor e ranking
+  economics.py         cenário ilustrativo: intervir agora vs. adiar
+notebooks/             01 dados e modelo | 02 priorização e custos
+reports/               métricas, previsões, rankings e figuras
+tests/                 testes automatizados (pytest)
+app.py                 dashboard Streamlit
 ```
 
-Esse comando lê os arquivos locais, cria RUL de treino, gera atributos de janela retrospectiva, usa GroupKFold agrupado por motor para avaliação de desenvolvimento e avalia o modelo final no último ciclo de cada motor do conjunto oficial de teste. Salva previsões e métricas em `reports/`.
+## Método
 
-### 2. Executar o dashboard
+**Validação.** `GroupKFold` com 5 partições, separando por motor (os ciclos de um motor nunca ficam em treino e validação ao mesmo tempo). O teste oficial é avaliado uma única vez, depois de escolher a variante. As métricas sempre comparam com a RUL **real** (sem teto).
 
-```bash
-streamlit run app.py
-```
+**Atributos.** Para cada ciclo, valor atual, média, desvio e tendência dos sensores e configurações em uma janela retrospectiva de 5 ciclos, mais o número do ciclo; só usa o passado. Colunas constantes no treino são removidas.
 
-O dashboard carrega as previsões e cria uma priorização demonstrativa. Se as saídas ainda não existirem, ele mostra instruções.
+**Modelo.** `HistGradientBoostingRegressor` com hiperparâmetros fixos (sem busca), comparado a um baseline constante (mediana do alvo de treino).
 
-### 3. Executar testes
+**Priorização.** Quatro critérios:
 
-```bash
-pytest -q
-```
+| Critério | Origem | Direção |
+|---|---|---|
+| Urgência: `1 − RUL prevista / 125`, em [0, 1] | modelo | benefício |
+| Criticidade operacional (1–3) | hipotético | benefício |
+| Índice de custo de intervenção (1–10) | hipotético | custo |
+| Impacto da parada (1–10) | hipotético | benefício |
 
-## Metodologia e cuidados
+Pesos por AHP (autovetor principal, razão de consistência), ordenação por TOPSIS (normalização vetorial, solução ideal e anti-ideal diferentes para benefício e custo). Os critérios hipotéticos são sorteados com semente fixa e de forma independente. A RUL prevista é uma estimativa pontual e é usada diretamente como indicador de urgência, não como "probabilidade de falha".
 
-- A divisão de desenvolvimento agrupa por motor (`GroupKFold`) para evitar que ciclos do mesmo motor apareçam em treino e validação na mesma divisão.
-- O conjunto oficial de teste só deve ser usado depois da seleção do modelo. Não use os resultados do teste para ajustar hiperparâmetros.
-- A avaliação oficial do FD001 é feita no último ciclo observado de cada motor de teste, comparando com `RUL_FD001`.
-- As features de janela usam apenas a observação atual e ciclos anteriores do mesmo motor.
-- O exemplo de modelo usa `HistGradientBoostingRegressor`. Não presume que restrições monotônicas sejam sempre corretas.
-- A implementação AHP inclui razão de consistência. TOPSIS orienta cada critério como benefício ou custo.
-- Criticidade e custos são explicitamente hipotéticos. O script de decisão fornece regras demonstrativas reproduzíveis e não representa uma base operacional.
-- Resultados reais devem ser inseridos no README após executar o projeto. Não reporte métricas que ainda não foram calculadas.
+## Resultados
 
-## Métricas
+### 1. Teto da RUL: sem teto vs. teto de 125 (validação cruzada)
 
-- MAE: erro absoluto médio em ciclos.
-- RMSE: raiz do erro quadrático médio em ciclos.
-- Escore assimétrico C-MAPSS: penaliza mais a superestimação da RUL. Convenção implementada: `erro = previsão - valor_real`; erro positivo significa superestimação.
+| Variante | RMSE (RUL real ≤ 150) | Viés (RUL real ≤ 150) | MAE faixa 50–100 | MAE faixa 100–150 | MAE em todas as linhas |
+|---|---|---|---|---|---|
+| Sem teto | 28.2 ± 2.0 | 10.4 ± 3.4 | 24.0 ± 1.7 | 27.9 ± 2.2 | 26.7 ± 1.3 |
+| Teto 125 | 19.7 ± 1.1 | -0.3 ± 2.4 | 17.5 ± 1.8 | 17.6 ± 1.5 | 31.8 ± 1.3 |
 
-## Próximas melhorias
+O baseline tem RMSE de 51.9 na mesma região. O MAE sobre todas as linhas piora com o teto porque inclui motores com RUL real acima de 150, que não aparecem no teste oficial; por isso o critério de decisão foi o erro na região de interesse e por faixa.
 
-- Comparar baseline simples e diferentes algoritmos com protocolo idêntico.
-- Avaliar modelos com restrições monotônicas somente quando houver justificativa física/documental.
-- Investigar importância de atributos e erros por faixa de RUL.
-- Adicionar análise de sensibilidade e cenários econômicos com premissas explicitadas.
-- Avaliar incerteza com método apropriado antes de apresentar probabilidades calibradas.
+![Erro por faixa de RUL](reports/figures/03_cv_teto_por_faixa.png)
 
-## Aviso
+### 2. Teste oficial (uma única avaliação)
 
-Este repositório é um projeto de portfólio educacional. Não é um sistema certificado, não oferece recomendação operacional e não substitui análise de engenharia, procedimentos de segurança ou validação com dados reais.
+| | MAE (ciclos) | RMSE (ciclos) | Escore C-MAPSS |
+|---|---|---|---|
+| Baseline (mediana do alvo) | 39.1 | 49.8 | 166571 |
+| Modelo (teto 125) | 14.0 | 19.1 | 667 |
+
+Viés médio: -0.7 ciclos; 52% dos motores foram superestimados.
+
+| RUL real (ciclos) | Motores | MAE | Viés |
+|---|---|---|---|
+| 7–30 | 25 | 8.2 | +5.9 |
+| 31–60 | 14 | 9.1 | +3.3 |
+| 61–100 | 28 | 15.7 | +5.5 |
+| 101–145 | 33 | 19.0 | -12.7 |
+
+O erro cresce nas faixas de RUL mais altas, onde os sensores mostram pouca degradação. Com o teto, o modelo tende a subestimar motores muito saudáveis (erro conservador, mas que gera intervenções antecipadas).
+
+![RUL real vs prevista](reports/figures/04_rul_real_vs_prevista.png)
+
+### 3. Priorização multicritério
+
+| Perfil | Urgência | Criticidade | Custo | Parada | CR |
+|---|---|---|---|---|---|
+| Equilibrado | 0.25 | 0.25 | 0.25 | 0.25 | 0.000 |
+| Segurança | 0.56 | 0.25 | 0.06 | 0.14 | 0.025 |
+| Custo | 0.12 | 0.22 | 0.54 | 0.12 | 0.008 |
+
+Todas as razões de consistência (CR) ficam abaixo de 0,10. Correlação de postos (Spearman) entre perfis: equilibrado × segurança = 0.75, equilibrado × custo = 0.48, segurança × custo = -0.02. Os motores 20, 68, 82 estão no top-10 dos três perfis (RUL prevista de 9 a 12 ciclos); as posições intermediárias dependem do perfil.
+
+Sensibilidade: trocar a urgência linear por `1 / (1 + RUL)` mantém os mesmos 3 motores de topo comuns aos perfis, mas altera as posições intermediárias (motores em comum no top-10 entre as duas versões: Equilibrado 5, Segurança 8, Custo 8).
+
+![Perfis e ranking](reports/figures/05_ranking_perfis.png)
+
+### 4. Cenário econômico ilustrativo
+
+Intervir agora custa a intervenção, a parada planejada e a vida útil desperdiçada; adiar custa a intervenção e a parada, mais a chance `p` de falha não planejada. O ponto de equilíbrio é `p* = vida desperdiçada / custo da falha`. Com valores hipotéticos (componente = 400 u.m., falha = 2000 u.m.), `p*` é 1.4% para o motor mais prioritário (RUL prevista 9) e 12.8% para um motor de RUL mediana (80). Quanto maior a RUL e mais barata a falha, mais risco compensa aceitar ao adiar.
+
+![Ponto de equilíbrio](reports/figures/06_ponto_equilibrio.png)
+
+## Limitações
+
+- Dados simulados de um único subconjunto (FD001) e apenas 100 motores de teste: os resultados não se generalizam sem validação adicional.
+- O escore assimétrico do C-MAPSS depende de poucos erros grandes; o escore de validação cruzada não é reportado porque somaria milhares de linhas.
+- A validação cruzada avalia todos os ciclos, enquanto o teste avalia só o último ciclo de motores truncados; um pseudo-teste com cortes aleatórios seria mais fiel.
+- Hiperparâmetros fixos e teto de 125 ciclos por convenção (não otimizado); nenhuma incerteza foi estimada.
+- Critérios de decisão, perfis de decisor e custos são hipóteses; em uso real, viriam de especialistas e da operação. O modelo de custo é simplificado (um único adiamento, sem desconto no tempo).
+- Ao revisar o modelo inicial, os erros do teste oficial foram inspecionados de forma diagnóstica, o que levantou a hipótese do teto; a decisão foi tomada na validação cruzada e nenhum hiperparâmetro foi ajustado com o teste.
+
+## Próximos passos possíveis
+
+- Restrições de monotonicidade justificadas fisicamente e pós-processamento temporal das previsões.
+- Pseudo-teste com cortes aleatórios na validação.
+- Estimativa de incerteza (por exemplo, regressão quantílica) e uso da probabilidade no cenário econômico.
+- Outros subconjuntos do C-MAPSS (FD002 a FD004), com várias condições operacionais.
