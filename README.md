@@ -7,7 +7,7 @@ Estimativa de vida útil restante (RUL) com Machine Learning e priorização de 
 ## Resumo dos resultados
 
 - **Modelo de RUL:** no teste oficial (100 motores, último ciclo observado), MAE de **13.8** e RMSE de **18.7** ciclos, contra 39.1 e 49.8 do baseline. O modelo vence o baseline nas 5 partições da validação cruzada por motor.
-- **Decisão técnica principal:** limitar a RUL de treino a 125 ciclos reduziu o RMSE na região de interesse (RUL real ≤ 150) de 28.2 para 19.7 ciclos na validação, e praticamente eliminou o viés (de +10,4 para −0,3 ciclos).
+- **Decisão técnica principal:** limitar a RUL de treino a 125 ciclos reduziu o RMSE na região de interesse (RUL real ≤ 150) de 28.7 para 20.1 ciclos na validação, e praticamente eliminou o viés (de +4,3 para 1,4 ciclos).
 - **Priorização:** três perfis de decisor (equilibrado, segurança, custo) com julgamentos AHP consistentes geram rankings diferentes; 3 motores (20, 68, 82) ficam no top-10 dos três perfis.
 - **Custos:** análise ilustrativa de "intervir agora ou adiar" com limiar de equilíbrio `p*`.
 
@@ -66,7 +66,7 @@ app.py                 dashboard Streamlit
 
 ## Método
 
-**Validação.** `GroupKFold` com 5 partições, separando por motor (os ciclos de um motor nunca ficam em treino e validação ao mesmo tempo). O teste oficial é avaliado uma única vez, depois de escolher a variante. As métricas sempre comparam com a RUL **real** (sem teto).
+**Validação.** `GroupKFold` com 5 partições, separando por motor (os ciclos de um motor nunca ficam em treino e validação ao mesmo tempo). As métricas sempre comparam com a RUL **real** (sem teto). A inspeção inicial dos resultados do teste oficial motivou a investigação de um teto para a RUL. As variantes com e sem teto foram então comparadas por validação cruzada agrupada por motor, orientando a escolha da abordagem. Como o teste oficial já havia sido inspecionado durante o desenvolvimento, seus resultados finais devem ser interpretados com essa ressalva: eles não constituem uma avaliação totalmente independente do processo de seleção. Uma avaliação em dados independentes seria necessária para obter uma estimativa mais robusta da capacidade de generalização do modelo.
 
 **Atributos.** Para cada ciclo, valor atual, média, desvio e tendência dos sensores e configurações em uma janela retrospectiva de 5 ciclos, mais o número do ciclo; só usa o passado. Colunas constantes no treino são removidas.
 
