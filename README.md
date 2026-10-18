@@ -6,7 +6,7 @@ Estimativa de vida útil restante (RUL) com Machine Learning e priorização de 
 
 ## Resumo dos resultados
 
-- **Modelo de RUL:** no teste oficial (100 motores, último ciclo observado), MAE de **14.0** e RMSE de **19.1** ciclos, contra 39.1 e 49.8 do baseline. O modelo vence o baseline nas 5 partições da validação cruzada por motor.
+- **Modelo de RUL:** no teste oficial (100 motores, último ciclo observado), MAE de **13.8** e RMSE de **18.7** ciclos, contra 39.1 e 49.8 do baseline. O modelo vence o baseline nas 5 partições da validação cruzada por motor.
 - **Decisão técnica principal:** limitar a RUL de treino a 125 ciclos reduziu o RMSE na região de interesse (RUL real ≤ 150) de 28.2 para 19.7 ciclos na validação, e praticamente eliminou o viés (de +10,4 para −0,3 ciclos).
 - **Priorização:** três perfis de decisor (equilibrado, segurança, custo) com julgamentos AHP consistentes geram rankings diferentes; 3 motores (20, 68, 82) ficam no top-10 dos três perfis.
 - **Custos:** análise ilustrativa de "intervir agora ou adiar" com limiar de equilíbrio `p*`.
@@ -45,9 +45,6 @@ jupyter lab notebooks/
 ```
 
 Os resultados em `reports/` já estão versionados, então o dashboard abre logo após clonar. Para regenerá-los, use os comandos acima. Os resultados são determinísticos (`random_state=42`); versões diferentes de bibliotecas podem alterar casas decimais. Resultados deste README obtidos com Python 3.12.3, scikit-learn 1.8.0, pandas 3.0.2 e numpy 2.4.4.
-
-<!-- Adicione uma captura do dashboard em docs/dashboard.png e descomente a linha abaixo:
-![Dashboard](docs/dashboard.png) -->
 
 ## Estrutura
 
