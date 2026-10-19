@@ -48,9 +48,6 @@ jupyter lab notebooks/
 
 Os resultados em `reports/` já estão versionados, então o dashboard abre logo após clonar. Para regenerá-los, use os comandos acima. Os resultados são determinísticos (`random_state=42`); versões diferentes de bibliotecas podem alterar casas decimais. Os números deste README vêm da execução da autora (Windows, Python 3.14, scikit-learn 1.9.1, pandas 3.0.6 e numpy 2.5.4).
 
-<!-- Adicione uma captura do dashboard em docs/dashboard.png e descomente a linha abaixo:
-![Dashboard](docs/dashboard.png) -->
-
 ## Estrutura
 
 ```
