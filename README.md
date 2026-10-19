@@ -1,3 +1,5 @@
+![dashboard](reports/figures/dashboard.png)
+
 # Manutenção preditiva de turbofans e priorização multicritério
 
 Estimativa de vida útil restante (RUL) com Machine Learning e priorização de intervenções com **AHP + TOPSIS**, usando os dados simulados NASA C-MAPSS (subconjunto FD001).
@@ -25,6 +27,8 @@ Uma equipe de manutenção tem recursos limitados e precisa decidir qual equipam
 NASA C-MAPSS, subconjunto FD001 (uma condição operacional, um modo de falha): 100 motores de treino (trajetória até a falha) e 100 de teste (trajetória truncada), com a RUL real do teste em arquivo separado. Fonte: NASA Prognostics Center of Excellence (repositório de dados de prognóstico, "Turbofan Engine Degradation Simulation"). Confira a licença e as condições de uso na fonte.
 
 Referência do simulador: A. Saxena, K. Goebel, D. Simon e N. Eklund, "Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation", PHM'08 (2008).
+
+Fonte dos dados: [NASA Prognostics Center of Excellence (PCoE)](https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/).
 
 Os arquivos **não** estão neste repositório: baixe `train_FD001.txt`, `test_FD001.txt` e `RUL_FD001.txt` e coloque em `data/raw/`.
 
@@ -68,7 +72,7 @@ app.py                 dashboard Streamlit
 
 ## Método
 
-**Validação.** `GroupKFold` com 5 partições, separando por motor (os ciclos de um motor nunca ficam em treino e validação ao mesmo tempo). O teste oficial é reservado para a avaliação final: a variante e os hiperparâmetros não são escolhidos com ele (ver ressalva em *Limitações*). As métricas sempre comparam com a RUL **real** (sem teto).
+**Validação.** `GroupKFold` com 5 partições, agrupadas por motor, garantindo que os ciclos de um mesmo motor não apareçam simultaneamente nos conjuntos de treino e validação. A inspeção diagnóstica inicial do teste oficial motivou a investigação de um teto para a RUL; as variantes foram posteriormente comparadas por validação cruzada agrupada. As métricas são calculadas em relação à RUL **real**, sem teto. Como o teste já havia sido inspecionado durante o desenvolvimento, seus resultados finais não constituem uma avaliação totalmente independente.
 
 **Atributos.** Para cada ciclo, valor atual, média, desvio e tendência dos sensores e configurações em uma janela retrospectiva de 5 ciclos, mais o número do ciclo; só usa o passado. Colunas constantes no treino são removidas.
 
