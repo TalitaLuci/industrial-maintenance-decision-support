@@ -4,7 +4,9 @@ import pandas as pd
 import streamlit as st
 import json
 from src.decision import run_ranking, URGENCY_HORIZON
-from src.economics import wasted_life_cost, break_even_probability, compare_cost_scenarios
+from src.economics import (
+    wasted_life_cost, break_even_probability, compare_cost_scenarios, describe_break_even,
+)
 
 ROOT = Path(__file__).resolve().parent
 REPORTS = ROOT / "reports"
@@ -65,14 +67,14 @@ if not meta["consistency_acceptable_reference"]:
 st.dataframe(
     ranked[[
         "unit_nr", "rul_pred", "urgency", "operational_criticality",
-        "intervention_cost", "downtime_impact", "topsis_score", "rank"
+        "intervention_cost", "failure_impact", "topsis_score", "rank"
     ]].rename(columns={
         "unit_nr": "Motor",
         "rul_pred": "RUL prevista (ciclos)",
         "urgency": "Urgência (transformada)",
         "operational_criticality": "Criticidade hipotética",
         "intervention_cost": "Índice de custo hipotético",
-        "downtime_impact": "Impacto hipotético",
+        "failure_impact": "Impacto da falha (hipotético)",
         "topsis_score": "Pontuação TOPSIS",
         "rank": "Posição",
     }),
@@ -80,7 +82,7 @@ st.dataframe(
     hide_index=True,
 )
 st.caption(
-    "Os índices de criticidade, custo e impacto são sintéticos (sorteio com semente fixa). "
+    "Os índices de criticidade, custo e impacto da falha são sintéticos (sorteio com semente fixa). "
     "Não representam informações reais sobre cada motor."
 )
 
@@ -97,9 +99,10 @@ valor = col2.slider("Valor do componente (u.m.)", 100, 1000, 400, step=50)
 p = col3.slider("Chance de falhar antes de intervir", 0.0, 0.5, 0.10, step=0.01)
 desperdicio = wasted_life_cost(rul_motor, valor, URGENCY_HORIZON)
 p_star = break_even_probability(desperdicio, falha)
-st.write(f"RUL prevista do motor {motor}: **{rul_motor:.0f} ciclos** | limiar de equilíbrio p* = **{p_star:.1%}**")
+st.write(f"RUL prevista do motor {motor}: **{rul_motor:.0f} ciclos**")
+st.info(describe_break_even(p_star))
 st.dataframe(
     compare_cost_scenarios(100.0, 50.0, float(falha), p, desperdicio).round(1),
     width="stretch", hide_index=True,
 )
-st.caption("Intervenção = 100 u.m. e parada = 50 u.m. (fixos). Se p < p*, adiar custa menos nas premissas.")
+st.caption("Intervenção = 100 u.m. e parada planejada = 50 u.m. (fixos, nos dois cenários).")

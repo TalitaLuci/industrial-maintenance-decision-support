@@ -11,4 +11,4 @@ Arquivos produzidos pelo código (pequenos e versionados para que o dashboard fu
 | `ranking_*.csv` | notebook 02 | Ranking TOPSIS por perfil de decisor (critérios hipotéticos) |
 | `figures/*.png` | notebooks 01 e 02 | Gráficos usados no README |
 
-O teste oficial é avaliado **uma única vez**, depois de escolher a variante na validação cruzada. Não ajuste o modelo olhando para `test_metrics.json`.
+O teste oficial é reservado para a avaliação final: a variante e os hiperparâmetros são escolhidos na validação cruzada, não com `test_metrics.json`. Ressalva: o teste de um modelo inicial foi inspecionado de forma diagnóstica durante o desenvolvimento (veja o README), então o resultado não é uma estimativa totalmente independente.

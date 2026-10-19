@@ -40,8 +40,8 @@ def test_hypothetical_criteria_are_reproducible_and_independent_of_row_order(pre
     a = build_demo_criteria(predictions).set_index("unit_nr")
     b = build_demo_criteria(predictions.sample(frac=1, random_state=1)).set_index("unit_nr").loc[a.index]
     pd.testing.assert_frame_equal(
-        a[["operational_criticality", "intervention_cost", "downtime_impact"]],
-        b[["operational_criticality", "intervention_cost", "downtime_impact"]],
+        a[["operational_criticality", "intervention_cost", "failure_impact"]],
+        b[["operational_criticality", "intervention_cost", "failure_impact"]],
     )
 
 

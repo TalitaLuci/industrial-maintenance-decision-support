@@ -56,11 +56,27 @@ def compare_cost_scenarios(
 
 
 def break_even_probability(wasted_life: float, failure_cost: float) -> float:
-    """Probabilidade de falha em que intervir agora e adiar custam o mesmo.
+    """Razão p* = vida útil desperdiçada / custo da falha (ponto de equilíbrio).
 
-    p* = custo de vida útil desperdiçada / custo da falha. Se a probabilidade de
-    falhar antes da intervenção for menor que p*, adiar custa menos (nas premissas).
+    Interpretação (premissas deste modelo):
+    - p* < 1: se a probabilidade de falhar antes da intervenção for menor que p*,
+      adiar custa menos; acima de p*, intervir agora custa menos.
+    - p* = 1: o equilíbrio só ocorre com probabilidade de falha de 100%.
+    - p* > 1: não existe equilíbrio para probabilidades válidas (0 a 1). Mesmo com
+      falha certa, adiar custa menos que intervir agora.
+    O valor NÃO é truncado em 1, para que o caso p* > 1 não seja confundido com p* = 1.
     """
     if wasted_life < 0 or failure_cost <= 0:
         raise ValueError("Custo de falha deve ser positivo e a vida desperdiçada não negativa.")
-    return min(1.0, wasted_life / failure_cost)
+    return wasted_life / failure_cost
+
+
+def describe_break_even(p_star: float) -> str:
+    """Texto curto (pt-BR) que distingue os três casos de p*."""
+    if p_star > 1.0 + 1e-12:
+        return (f"p* = {p_star:.1%} (acima de 100%): não há ponto de equilíbrio possível; "
+                "nestas premissas, adiar custa menos para qualquer probabilidade de falha.")
+    if abs(p_star - 1.0) <= 1e-12:
+        return "p* = 100%: o equilíbrio só ocorre se a falha for certa."
+    return (f"p* = {p_star:.1%}: se a chance de falhar antes da intervenção for menor que isso, "
+            "adiar custa menos; acima disso, intervir agora custa menos.")

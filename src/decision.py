@@ -6,10 +6,13 @@ from .ahp import ahp_weights
 from .topsis import topsis
 
 # Ordem dos critérios nas matrizes AHP.
-CRITERIA = ["urgency", "operational_criticality", "intervention_cost", "downtime_impact"]
-# Urgência, criticidade e impacto da parada: quanto maior, maior a prioridade (benefício).
+CRITERIA = ["urgency", "operational_criticality", "intervention_cost", "failure_impact"]
+# Urgência, criticidade e impacto operacional da falha: quanto maior, maior a prioridade (benefício).
+# "Impacto operacional da falha" = gravidade esperada de uma falha NÃO planejada deste motor
+# (hipotético). Não é o custo da parada planejada para manutenção, que aparece em
+# src/economics.py como `downtime_cost` e vale para os dois cenários (agir agora ou adiar).
 # Custo de intervenção: quanto menor, melhor (custo).
-BENEFIT_CRITERIA = ["urgency", "operational_criticality", "downtime_impact"]
+BENEFIT_CRITERIA = ["urgency", "operational_criticality", "failure_impact"]
 
 URGENCY_HORIZON = 125  # ciclos; horizonte de planejamento hipotético
 DEFAULT_URGENCY_METHOD = "linear"
@@ -55,7 +58,7 @@ def build_demo_criteria(predictions: pd.DataFrame,
     """Monta a matriz de critérios.
 
     Observado (previsto pelo modelo): urgência, a partir da RUL prevista.
-    Hipotéticos: criticidade (1-3), índice de custo (1-10) e impacto da parada
+    Hipotéticos: criticidade (1-3), índice de custo (1-10) e impacto operacional da falha
     (1-10), sorteados de forma independente e reprodutível por motor (seed).
     Não descrevem motores reais.
     """
@@ -66,7 +69,7 @@ def build_demo_criteria(predictions: pd.DataFrame,
     hypothetical = pd.DataFrame({
         "operational_criticality": rng.integers(1, 4, len(unit_ids)),
         "intervention_cost": rng.integers(1, 11, len(unit_ids)),
-        "downtime_impact": rng.integers(1, 11, len(unit_ids)),
+        "failure_impact": rng.integers(1, 11, len(unit_ids)),
     }, index=unit_ids)
     ids = df["unit_nr"].astype(int)
     for col in hypothetical.columns:

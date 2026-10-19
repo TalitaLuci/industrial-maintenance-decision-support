@@ -1,7 +1,10 @@
 """Treinamento e avaliação de RUL com validação agrupada por motor.
 
 Fluxo: validação cruzada por motor (desenvolvimento) -> escolha da variante ->
-avaliação única no teste oficial. O teste nunca participa da escolha do modelo.
+avaliação final no teste oficial. A variante e os hiperparâmetros não são escolhidos
+com o teste. Ressalva: os erros do teste de um modelo inicial foram inspecionados de forma
+diagnóstica durante o desenvolvimento (veja o README), então o desempenho no teste deve
+ser lido com essa ressalva.
 """
 from pathlib import Path
 import json
@@ -92,7 +95,7 @@ def last_observed_rows(test_feat: pd.DataFrame) -> pd.DataFrame:
 
 
 def predict_official_test(model, test_feat, true_rul, feature_cols):
-    """Avaliação final no teste oficial (usar UMA vez, após escolher a variante)."""
+    """Avaliação final no teste oficial, após escolher a variante pela validação cruzada."""
     last_rows = last_observed_rows(test_feat)
     if len(last_rows) != len(true_rul):
         raise ValueError(
